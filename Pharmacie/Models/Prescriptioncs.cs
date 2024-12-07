@@ -1,7 +1,10 @@
-﻿namespace Pharmacie.Models
+﻿using System.ComponentModel.DataAnnotations;
+
+namespace Pharmacie.Models
 {
     public class Prescription
     {
+        [Key]
         public int Id { get; set; }
         public int PatientId { get; set; }
         public int PharmacistId { get; set; }

@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Pharmacie.Models;
 using Pharmacie.Repositories;
 
@@ -9,6 +10,7 @@ namespace Pharmacie.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    [Authorize]
     public class MedicationController : ControllerBase
     {
         private readonly IMedicationRepository _medicationRepository;
