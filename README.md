@@ -45,3 +45,5 @@ Bien que déjà performant, le projet Pharmacie pourrait bénéficier de dévelo
 - Amélioration de l'interface utilisateur
 
 Pharmacie représente une avancée significative dans la digitalisation des processus de prescription médicale, combinant efficacité, sécurité et simplicité d'utilisation
+voici le front end en react 
+https://github.com/helmibenzina101/pharmacie-front_react
