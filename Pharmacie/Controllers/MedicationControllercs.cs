@@ -10,7 +10,7 @@ namespace Pharmacie.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
-    [Authorize]
+    [Authorize(Roles = "user,master")]
     public class MedicationController : ControllerBase
     {
         private readonly IMedicationRepository _medicationRepository;

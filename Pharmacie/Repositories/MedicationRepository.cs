@@ -14,5 +14,20 @@ namespace Pharmacie.Repositories
         {
             return await _context.Medications.FirstOrDefaultAsync(m => m.Name == name);
         }
+        public void Update(Medication medication)
+        {
+            var existingEntity = _context.ChangeTracker.Entries<Medication>()
+                .FirstOrDefault(e => e.Entity.Id == medication.Id);
+
+            if (existingEntity != null)
+            {
+                _context.Entry(existingEntity.Entity).State = EntityState.Detached;
+            }
+
+            _context.Medications.Update(medication);
+            _context.SaveChanges();
+        }
+
+
     }
 }

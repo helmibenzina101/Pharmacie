@@ -1,12 +1,13 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Pharmacie.Models;
 using Pharmacie.Repositories;
-
 
 namespace Pharmacie.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    [Authorize(Roles = "user,master")]
     public class PatientController : ControllerBase
     {
         private readonly IPatientRepository _patientRepository;
@@ -56,8 +57,16 @@ namespace Pharmacie.Controllers
                 return NotFound();
             }
 
-            _patientRepository.Update(patient);
-            return NoContent();
+            try
+            {
+                // Appelle la méthode corrigée du repository
+                await _patientRepository.UpdatePatientAsync(patient);
+                return NoContent();
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, $"Erreur : {ex.Message}");
+            }
         }
 
         // Supprimer un patient
@@ -74,7 +83,7 @@ namespace Pharmacie.Controllers
             return NoContent();
         }
 
-        // Récupérer tous les patients (optionnel)
+        // Récupérer tous les patients
         [HttpGet]
         public async Task<IActionResult> GetAllPatients()
         {

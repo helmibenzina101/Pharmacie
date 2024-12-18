@@ -1,57 +1,64 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Pharmacie.Data;
+using Pharmacie.Models;
 using Pharmacie.Repositories;
 using Pharmacie.Utils;
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Configurer les services Identity
+builder.Services.AddIdentity<ApplicationUser, IdentityRole>()
+    .AddEntityFrameworkStores<AppDbContext>()
+    .AddDefaultTokenProviders();
+
+// Ajouter le générateur de token JWT
 builder.Services.AddSingleton<JwtTokenGenerator>();
 
-// Add services to the container.
-
-builder.Services.AddControllers();
-// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+// Configurer la connexion à la base de données
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
+// Ajouter les repositories
 builder.Services.AddScoped<IPharmacistRepository, PharmacistRepository>();
 builder.Services.AddScoped<IPatientRepository, PatientRepository>();
 builder.Services.AddScoped<IMedicationRepository, MedicationRepository>();
 builder.Services.AddScoped<IPrescriptionRepository, PrescriptionRepository>();
-builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddScoped<IMedecinRepository, MedecinRepository>();
+builder.Services.AddScoped<IRepository<Prescription>, Repository<Prescription>>();
+
+
 
 // Ajouter l'authentification JWT
-// Lire la configuration pour le JWT
-IConfigurationSection jwtSettings = builder.Configuration.GetSection("Jwt");
-string secretKey = jwtSettings["Key"]; // Assurez-vous que la clé n'est pas nulle.
-
-if (string.IsNullOrWhiteSpace(secretKey))
+var secretKey = builder.Configuration["Jwt:Key"];
+if (string.IsNullOrEmpty(secretKey))
 {
-    throw new ArgumentNullException(nameof(secretKey), "La clé secrète JWT ne peut pas être nulle.");
+    throw new InvalidOperationException("JWT SecretKey is not configured in appsettings.json.");
 }
 
-// Ajouter l'authentification avec JWT
 builder.Services.AddAuthentication(options =>
 {
     options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
     options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
-}).AddJwtBearer(options =>
+}).AddJwtBearer(o =>
 {
-    options.TokenValidationParameters = new TokenValidationParameters
+    o.TokenValidationParameters = new TokenValidationParameters
     {
+        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey)),
         ValidateIssuer = true,
         ValidateAudience = true,
         ValidateLifetime = true,
         ValidateIssuerSigningKey = true,
-        ValidIssuer = jwtSettings["Issuer"],
-        ValidAudience = jwtSettings["Audience"],
-        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey))
+        ValidIssuer = builder.Configuration["Jwt:Issuer"],
+        ValidAudience = builder.Configuration["Jwt:Audience"],
+        ClockSkew = TimeSpan.Zero
     };
 });
+
+// Ajouter Swagger avec support JWT
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
@@ -81,12 +88,37 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 
-
 // Ajouter les contrôleurs
 builder.Services.AddControllers();
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowReactApp", policy =>
+    {
+        policy.WithOrigins("http://localhost:3000") // Autorise l'origine de React
+              .AllowAnyHeader()                   // Autorise tous les en-têtes
+              .AllowAnyMethod();                  // Autorise toutes les méthodes HTTP (GET, POST, etc.)
+    });
+});
+
+
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
+// Initialiser les rôles
+using (var scope = app.Services.CreateScope())
+{
+    var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
+    var roles = new[] { "user", "master" };
+
+    foreach (var role in roles)
+    {
+        if (!roleManager.RoleExistsAsync(role).GetAwaiter().GetResult())
+        {
+            roleManager.CreateAsync(new IdentityRole(role)).GetAwaiter().GetResult();
+        }
+    }
+}
+
+// Configurer le pipeline de l'application
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
@@ -95,10 +127,10 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
-app.UseAuthorization();
-// Ajout de l'authentification et de l'autorisation
+app.UseCors("AllowReactApp");
 app.UseAuthentication();
 app.UseAuthorization();
+
 app.MapControllers();
 
 app.Run();

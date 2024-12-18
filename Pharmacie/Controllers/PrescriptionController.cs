@@ -1,162 +1,96 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Pharmacie.Models;
 using Pharmacie.Repositories;
-
+using System.Collections.Generic;
+using System.Threading.Tasks;
 
 namespace Pharmacie.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    [Authorize(Roles = "master")]
     public class PrescriptionController : ControllerBase
     {
         private readonly IPrescriptionRepository _prescriptionRepository;
-        private readonly IMedicationRepository _medicationRepository;
 
-        public PrescriptionController(IPrescriptionRepository prescriptionRepository, IMedicationRepository medicationRepository)
+        public PrescriptionController(IPrescriptionRepository prescriptionRepository)
         {
             _prescriptionRepository = prescriptionRepository;
-            _medicationRepository = medicationRepository;
         }
 
-        // Récupérer une ordonnance par ID
-        [HttpGet("{id}")]
-        public async Task<IActionResult> GetPrescription(int id)
+        [HttpGet]
+        public async Task<IActionResult> GetAllPrescriptions()
         {
-            var prescription = await _prescriptionRepository.GetByIdAsync(id);
+            var prescriptions = await _prescriptionRepository.GetPrescriptionsWithDetailsAsync();
+            return Ok(prescriptions);
+        }
+
+        [HttpGet("{id}")]
+        public async Task<IActionResult> GetPrescriptionById(int id)
+        {
+            var prescription = await _prescriptionRepository.GetPrescriptionWithDetailsByIdAsync(id);
             if (prescription == null)
-            {
-                return NotFound();
-            }
+                return NotFound(new { message = "Prescription introuvable." });
+
             return Ok(prescription);
         }
 
-        // Ajouter une ordonnance
         [HttpPost]
-        public async Task<IActionResult> CreatePrescription([FromBody] Prescription prescription)
+        public async Task<IActionResult> AddPrescription([FromBody] Prescription prescription)
         {
-            if (prescription == null)
-            {
-                return BadRequest("L'ordonnance est null");
-            }
+            if (!ModelState.IsValid)
+                return BadRequest(ModelState);
 
-            // Assurer que les médicaments sont valides avant de les ajouter à l'ordonnance
-            if (prescription.Medications != null && prescription.Medications.Count > 0)
+            try
             {
-                foreach (var medication in prescription.Medications)
-                {
-                    var med = await _medicationRepository.GetByIdAsync(medication.Id);
-                    if (med == null)
-                    {
-                        return BadRequest($"Le médicament {medication.Name} n'existe pas dans la base de données.");
-                    }
-                }
+                await _prescriptionRepository.AddPrescriptionWithDetailsAsync(prescription);
+                return CreatedAtAction(nameof(GetPrescriptionById), new { id = prescription.Id }, prescription);
             }
-
-            await _prescriptionRepository.AddAsync(prescription);
-            return CreatedAtAction(nameof(GetPrescription), new { id = prescription.Id }, prescription);
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
         }
 
-        // Mettre à jour une ordonnance
         [HttpPut("{id}")]
         public async Task<IActionResult> UpdatePrescription(int id, [FromBody] Prescription prescription)
         {
-            if (prescription == null || prescription.Id != id)
-            {
-                return BadRequest("Les données de l'ordonnance sont incorrectes");
-            }
+            if (id != prescription.Id)
+                return BadRequest(new { message = "Les IDs ne correspondent pas." });
 
-            var existingPrescription = await _prescriptionRepository.GetByIdAsync(id);
-            if (existingPrescription == null)
+            try
             {
-                return NotFound();
-            }
+                var existingPrescription = await _prescriptionRepository.GetByIdAsync(id);
+                if (existingPrescription == null)
+                    return NotFound(new { message = "Prescription introuvable." });
 
-            // Mettre à jour les médicaments de l'ordonnance
-            if (prescription.Medications != null && prescription.Medications.Count > 0)
+                // Mise à jour
+                existingPrescription.PatientId = prescription.PatientId;
+                existingPrescription.MedecinId = prescription.MedecinId;
+                existingPrescription.PharmacistId = prescription.PharmacistId;
+                existingPrescription.DateIssued = prescription.DateIssued;
+                existingPrescription.Medications = prescription.Medications;
+
+                _prescriptionRepository.Update(existingPrescription);
+
+                return NoContent();
+            }
+            catch (KeyNotFoundException ex)
             {
-                foreach (var medication in prescription.Medications)
-                {
-                    var med = await _medicationRepository.GetByIdAsync(medication.Id);
-                    if (med == null)
-                    {
-                        return BadRequest($"Le médicament {medication.Name} n'existe pas dans la base de données.");
-                    }
-                }
+                return NotFound(new { message = ex.Message });
             }
-
-            _prescriptionRepository.Update(prescription);
-            return NoContent();
         }
 
-        // Supprimer une ordonnance
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeletePrescription(int id)
         {
             var prescription = await _prescriptionRepository.GetByIdAsync(id);
             if (prescription == null)
-            {
-                return NotFound();
-            }
+                return NotFound(new { message = "Prescription introuvable." });
 
             _prescriptionRepository.Delete(prescription);
             return NoContent();
-        }
-
-        // Récupérer toutes les ordonnances
-        [HttpGet]
-        public async Task<IActionResult> GetAllPrescriptions()
-        {
-            var prescriptions = await _prescriptionRepository.GetAllAsync();
-            return Ok(prescriptions);
-        }
-
-        // Ajouter un médicament à une ordonnance
-        [HttpPost("{prescriptionId}/add-medication")]
-        public async Task<IActionResult> AddMedicationToPrescription(int prescriptionId, [FromBody] Medication medication)
-        {
-            var prescription = await _prescriptionRepository.GetByIdAsync(prescriptionId);
-            if (prescription == null)
-            {
-                return NotFound($"L'ordonnance avec l'ID {prescriptionId} n'a pas été trouvée.");
-            }
-
-            var existingMedication = await _medicationRepository.GetByIdAsync(medication.Id);
-            if (existingMedication == null)
-            {
-                return NotFound($"Le médicament avec l'ID {medication.Id} n'existe pas.");
-            }
-
-            if (prescription.Medications == null)
-            {
-                prescription.Medications = new List<Medication>();
-            }
-
-            prescription.Medications.Add(existingMedication);
-            _prescriptionRepository.Update(prescription);
-
-            return Ok(prescription);
-        }
-
-        // Supprimer un médicament d'une ordonnance
-        [HttpDelete("{prescriptionId}/remove-medication/{medicationId}")]
-        public async Task<IActionResult> RemoveMedicationFromPrescription(int prescriptionId, int medicationId)
-        {
-            var prescription = await _prescriptionRepository.GetByIdAsync(prescriptionId);
-            if (prescription == null)
-            {
-                return NotFound($"L'ordonnance avec l'ID {prescriptionId} n'a pas été trouvée.");
-            }
-
-            var medication = prescription.Medications?.FirstOrDefault(m => m.Id == medicationId);
-            if (medication == null)
-            {
-                return NotFound($"Le médicament avec l'ID {medicationId} n'est pas associé à cette ordonnance.");
-            }
-
-            prescription.Medications.Remove(medication);
-            _prescriptionRepository.Update(prescription);
-
-            return Ok(prescription);
         }
     }
 }

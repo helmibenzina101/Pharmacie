@@ -1,12 +1,13 @@
 ﻿using Pharmacie.Models;
-using Pharmacie.Repositories;
-using Pharmacie.Models;
+using System.Collections.Generic;
+using System.Threading.Tasks;
 
 namespace Pharmacie.Repositories
 {
     public interface IPrescriptionRepository : IRepository<Prescription>
     {
-        Task<IEnumerable<Prescription>> GetByPatientIdAsync(int patientId);
-        Task<IEnumerable<Prescription>> GetByPharmacistIdAsync(int pharmacistId);
+        Task<Prescription> GetPrescriptionWithDetailsByIdAsync(int id);
+        Task<IEnumerable<Prescription>> GetPrescriptionsWithDetailsAsync();
+        Task AddPrescriptionWithDetailsAsync(Prescription prescription);
     }
 }

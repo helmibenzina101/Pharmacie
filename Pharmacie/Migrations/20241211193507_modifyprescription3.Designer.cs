@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Pharmacie.Data;
 
@@ -11,9 +12,11 @@ using Pharmacie.Data;
 namespace Pharmacie.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20241211193507_modifyprescription3")]
+    partial class modifyprescription3
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -356,6 +359,24 @@ namespace Pharmacie.Migrations
                     b.ToTable("Prescriptions");
                 });
 
+            modelBuilder.Entity("PrescriptionMedication", b =>
+                {
+                    b.Property<int>("PrescriptionId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("MedicationId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Quantity")
+                        .HasColumnType("int");
+
+                    b.HasKey("PrescriptionId", "MedicationId");
+
+                    b.HasIndex("MedicationId");
+
+                    b.ToTable("PrescriptionMedications");
+                });
+
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<string>", b =>
                 {
                     b.HasOne("Microsoft.AspNetCore.Identity.IdentityRole", null)
@@ -432,6 +453,25 @@ namespace Pharmacie.Migrations
                     b.Navigation("Patient");
 
                     b.Navigation("Pharmacist");
+                });
+
+            modelBuilder.Entity("PrescriptionMedication", b =>
+                {
+                    b.HasOne("Pharmacie.Models.Medication", "Medication")
+                        .WithMany()
+                        .HasForeignKey("MedicationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Pharmacie.Models.Prescription", "Prescription")
+                        .WithMany()
+                        .HasForeignKey("PrescriptionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Medication");
+
+                    b.Navigation("Prescription");
                 });
 
             modelBuilder.Entity("Pharmacie.Models.Medecin", b =>
